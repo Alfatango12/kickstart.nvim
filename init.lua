@@ -90,6 +90,12 @@ P.S. You can delete this when you're done too. It's your config now! :)
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
+-- Keybinds
+vim.keymap.set('n', '<c-k>', ':wincmd k<CR>')
+vim.keymap.set('n', '<c-j>', ':wincmd j<CR>')
+vim.keymap.set('n', '<c-h>', ':wincmd h<CR>')
+vim.keymap.set('n', '<c-l>', ':wincmd l<CR>')
+
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = true
 
@@ -868,6 +874,78 @@ require('lazy').setup({
     end,
   },
 
+  { --Rustacean
+    {
+      'mrcjkb/rustaceanvim',
+      version = '^8', -- Recommended
+      lazy = false, -- This plugin is already lazy
+      ft = { 'rust' },
+      config = function()
+        vim.g.rustaceanvim = {
+          -- Plugin configuration
+          tools = {},
+          -- LSP configuration
+          server = {
+            on_attach = function(client, bufnr)
+              local success, _ = pcall(vim.lsp.inlay_hint.enable, true)
+              if not success then vim.lsp.inlay_hint.enable(0, true) end
+            end,
+            default_settings = {
+              -- rust-analyzer language server configuration
+              ['rust-analyzer'] = {
+                cargo = {
+                  features = 'all',
+                },
+              },
+            },
+          },
+          -- DAP configuration
+          dap = {},
+        }
+      end,
+    },
+  },
+
+  {
+    'christoomey/vim-tmux-navigator',
+    cmd = {
+      'TmuxNavigateLeft',
+      'TmuxNavigateDown',
+      'TmuxNavigateUp',
+      'TmuxNavigateRight',
+      'TmuxNavigatePrevious',
+      'TmuxNavigatorProcessList',
+    },
+    keys = {
+      { '<c-h>', '<cmd><C-U>TmuxNavigateLeft<cr>' },
+      { '<c-j>', '<cmd><C-U>TmuxNavigateDown<cr>' },
+      { '<c-k>', '<cmd><C-U>TmuxNavigateUp<cr>' },
+      { '<c-l>', '<cmd><C-U>TmuxNavigateRight<cr>' },
+      { '<c-\\>', '<cmd><C-U>TmuxNavigatePrevious<cr>' },
+    },
+  },
+
+  {
+    'vim-test/vim-test',
+    dependencies = {
+      'preservim/vimux',
+    },
+
+    keys = {
+      { '<leader>tsn', '<cmd>TestNearest<cr>', desc = 'Test Nearest' },
+      { '<leader>tsf', '<cmd>TestFile<cr>', desc = 'Test File' },
+      { '<leader>tsa', '<cmd>TestSuite<cr>', desc = 'Test Suite' },
+      { '<leader>tsl', '<cmd>TestLast<cr>', desc = 'Test Last' },
+      { '<leader>tsv', '<cmd>TestVisit<cr>', desc = 'Test Visit' },
+    },
+
+    config = function()
+      vim.g['test#strategy'] = 'vimux'
+      vim.g.VimuxOrientation = 'h'
+      vim.g.VimuxHeight = '25'
+    end,
+  },
+
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
     lazy = false,
@@ -900,7 +978,6 @@ require('lazy').setup({
       })
     end,
   },
-
   -- The following comments only work if you have downloaded the kickstart repo, not just copy pasted the
   -- init.lua. If you want these files, they are in the repository, so you can just download them and
   -- place them in the correct locations.
@@ -910,7 +987,7 @@ require('lazy').setup({
   --  Here are some example plugins that I've included in the Kickstart repository.
   --  Uncomment any of the lines below to enable them (you will need to restart nvim).
   --
-  -- require 'kickstart.plugins.debug',
+  require 'kickstart.plugins.debug',
   -- require 'kickstart.plugins.indent_line',
   -- require 'kickstart.plugins.lint',
   require 'kickstart.plugins.autopairs',
