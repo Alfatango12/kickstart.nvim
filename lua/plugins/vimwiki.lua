@@ -8,7 +8,7 @@ return {
     } }
     vim.g.vimwiki_listsyms = '✗○◐●✓'
     vim.g.vimwiki_global_ext = 0
-    vim.g.vimwiki_auto_header = 1
+    vim.g.vimwiki_auto_header = 0
     vim.g.vimwiki_folding = 'expr' -- or 'list'
     -- No spaces in new note name
     vim.g.vimwiki_url_utils = 1
