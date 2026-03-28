@@ -96,6 +96,13 @@ vim.keymap.set('n', '<c-j>', ':wincmd j<CR>')
 vim.keymap.set('n', '<c-h>', ':wincmd h<CR>')
 vim.keymap.set('n', '<c-l>', ':wincmd l<CR>')
 
+-- Macros
+vim.keymap.set('n', '<leader>fs', '@s', { desc = 'Add ";" at line end' })
+
+-- lsp code action
+vim.keymap.set({ 'n', 'v' }, '<leader>la', vim.lsp.buf.code_action, { desc = 'LSP Code Actions' })
+vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, { desc = 'LSP Rename' })
+
 -- Tabs
 -- Tab / Indentation settings
 vim.opt.tabstop = 2 -- Number of spaces a <Tab> counts for
@@ -251,6 +258,9 @@ if not (vim.uv or vim.loop).fs_stat(lazypath) then
   local out = vim.fn.system { 'git', 'clone', '--filter=blob:none', '--branch=stable', lazyrepo, lazypath }
   if vim.v.shell_error ~= 0 then error('Error cloning lazy.nvim:\n' .. out) end
 end
+
+-- conceal for obsidian
+vim.opt.conceallevel = 2
 
 ---@type vim.Option
 local rtp = vim.opt.rtp

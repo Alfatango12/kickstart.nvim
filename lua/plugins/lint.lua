@@ -10,7 +10,17 @@ return {
     lint.linters_by_ft = {
       markdown = { 'markdownlint' },
     }
-
+    local markdownlint = lint.linters.markdownlint
+    markdownlint.args = {
+      -- Disable MD041 (First line heading) and MD013 (Line length)
+      '--config',
+      vim.fn.json_encode {
+        ['MD041'] = false,
+        -- ['MD013'] = false,
+        -- ['MD033'] = false, -- Allows inline HTML if needed
+      },
+      '--',
+    }
     -- To allow other plugins to add linters to require('lint').linters_by_ft,
     -- instead set linters_by_ft like this:
     -- lint.linters_by_ft = lint.linters_by_ft or {}
