@@ -250,29 +250,30 @@ vim.api.nvim_create_autocmd('TextYankPost', {
   callback = function() vim.hl.on_yank() end,
 })
 
--- todo sync autocmd
+-- todo sync
 local sync_group = vim.api.nvim_create_augroup('todo-sync-group', { clear = true })
 
--- 1. Pull from Monolith when opening daily note
+-- 1. Pull from Monolith when opening ANY note
 vim.api.nvim_create_autocmd({ 'BufEnter', 'BufReadPost' }, {
-  pattern = '*-*-*.md', -- Triggers mostly on daily notes YYYY-MM-DD
+  pattern = '*.md',
   group = sync_group,
   callback = function()
     local status, sync = pcall(require, 'util.todo_sync')
-    if status then sync.refresh_daily_tasks() end
+    if status then sync.refresh_tasks() end
   end,
 })
 
--- 2. Push back to Monolith before saving daily note
+-- 2. Push back to Monolith before saving ANY note
 vim.api.nvim_create_autocmd('BufWritePre', {
-  pattern = '*-*-*.md',
+  pattern = '*.md',
   group = sync_group,
   callback = function()
     local status, sync = pcall(require, 'util.todo_sync')
     if status then sync.sync_to_monolith() end
   end,
 })
--- Override Checkmate's default toggle to include our sync and autosave
+
+-- 3. Checkmate override
 vim.api.nvim_create_autocmd('FileType', {
   pattern = 'markdown',
   group = vim.api.nvim_create_augroup('todo-sync-keymap', { clear = true }),

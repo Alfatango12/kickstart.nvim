@@ -41,14 +41,13 @@ end
 
 local function get_hash(str) return vim.fn.sha256(str):sub(1, 8) end
 
--- Push changes FROM the Daily Note TO the Monolith
+-- Push changes FROM the Note (Daily or Project) TO the Monolith
 function M.sync_to_monolith()
   local buf = vim.api.nvim_get_current_buf()
   local path = vim.api.nvim_buf_get_name(buf)
   local filename = vim.fn.fnamemodify(path, ':t')
 
   if filename == MONOLITH_FILE then return end
-  if not filename:match '^%d%d%d%d%-%d%d%-%d%d' then return end
 
   local buf_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 
@@ -65,13 +64,12 @@ function M.sync_to_monolith()
   local monolith_updated = false
   local base_source_tag = ' %(from %[%[' .. escape_lua_pattern(MONOLITH_NAME) .. '%]%]%)'
 
-  -- Scan daily note for synced tasks with a hidden ID
+  -- Scan note for synced tasks with a hidden ID
   for row_idx, line in ipairs(buf_lines) do
     local id_match = line:match '<!%-%-id:([a-f0-9]+)%-%->'
 
     if id_match then
       -- Reconstruct what the monolith line *should* look like now
-      -- by stripping the source tag and the hidden HTML comment
       local clean_line = line:gsub(base_source_tag .. ' %<!%-%-id:[a-f0-9]+%-%->%s*$', '')
 
       -- Find the original line in the monolith by hashing
@@ -81,7 +79,7 @@ function M.sync_to_monolith()
             monolith_lines[i] = clean_line
             monolith_updated = true
 
-            -- Update the ID in the daily note so we can keep editing without breaking the link
+            -- Update the ID in the note so we can keep editing without breaking the link
             local new_hash = get_hash(clean_line)
             local updated_daily_line = clean_line .. ' (from [[' .. MONOLITH_NAME .. ']]) <!--id:' .. new_hash .. '-->'
             vim.api.nvim_buf_set_lines(buf, row_idx - 1, row_idx, false, { updated_daily_line })
@@ -102,8 +100,8 @@ function M.sync_to_monolith()
   end
 end
 
--- Pull changes FROM the Monolith TO the Daily Note
-function M.refresh_daily_tasks()
+-- Pull changes FROM the Monolith TO the Note (Daily or Project)
+function M.refresh_tasks()
   vim.schedule(function()
     local buf = vim.api.nvim_get_current_buf()
     local path = vim.api.nvim_buf_get_name(buf)
@@ -111,11 +109,34 @@ function M.refresh_daily_tasks()
 
     if filename == MONOLITH_FILE then return end
 
-    local year, month, day = filename:match '(%d%d%d%d)%-(%d%d)%-(%d%d)'
-    if not (year and month and day) then return end
+    local buf_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 
-    local date_str = string.format('%s/%s/%s', day, month, year:sub(3, 4))
-    local due_tag = '@due(' .. date_str .. ')'
+    -- Feature 1: Check if it's a Daily Note based on filename
+    local is_daily = false
+    local date_str, due_tag
+    local year, month, day = filename:match '^(%d%d%d%d)%-(%d%d)%-(%d%d)'
+    if year and month and day then
+      is_daily = true
+      date_str = string.format('%s/%s/%s', day, month, year:sub(3, 4))
+      due_tag = '@due(' .. date_str .. ')'
+    end
+
+    -- Feature 2: Check if it's a Project Note based on frontmatter
+    local project_name = nil
+    local frontmatter_end = 0
+    if buf_lines[1] == '---' then
+      for i = 2, #buf_lines do
+        if buf_lines[i] == '---' then
+          frontmatter_end = i
+          break
+        end
+        local parsed_proj = buf_lines[i]:match '^project:%s*(.-)%s*$'
+        if parsed_proj then project_name = parsed_proj end
+      end
+    end
+
+    -- If neither a daily note nor a project note, do nothing
+    if not is_daily and not project_name then return end
 
     -- Read monolith
     local mono_buf = get_buf_by_name(MONOLITH_FILE)
@@ -128,27 +149,32 @@ function M.refresh_daily_tasks()
 
     if not monolith_lines then return end
 
+    -- Collect relevant tasks
     local daily_tasks = {}
+    local project_tasks = {}
+
     for _, line in ipairs(monolith_lines) do
-      if line:find(due_tag, 1, true) and line:find('^%s*[-*]%s+[' .. UNCHECKED .. CHECKED .. ']') then
-        -- Generate a hash of the original monolith line to track edits
+      if line:find('^%s*[-*]%s+[' .. UNCHECKED .. CHECKED .. ']') then
         local hash = get_hash(line)
         local source_tag = ' (from [[' .. MONOLITH_NAME .. ']]) <!--id:' .. hash .. '-->'
-        table.insert(daily_tasks, vim.trim(line) .. source_tag)
+
+        -- Match Date tasks
+        if is_daily and line:find(due_tag, 1, true) then table.insert(daily_tasks, vim.trim(line) .. source_tag) end
+
+        -- Match Project tasks
+        if project_name and line:find('@project(' .. project_name .. ')', 1, true) then table.insert(project_tasks, vim.trim(line) .. source_tag) end
       end
     end
 
-    local buf_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    -- Rebuild buffer lines (filtering out old injected sections)
     local new_buf_lines = {}
-    local frontmatter_end = 0
     local skip_mode = false
     local base_source_tag = ' (from [[' .. MONOLITH_NAME .. ']])'
 
     for i, line in ipairs(buf_lines) do
-      if line == '---' and i > 1 and frontmatter_end == 0 then
-        frontmatter_end = i
+      if i <= frontmatter_end and frontmatter_end > 0 then
         table.insert(new_buf_lines, line)
-      elseif line:find('## Tasks Due Today', 1, true) then
+      elseif line:find('## Tasks Due Today', 1, true) or line:find('## Tasks for Project', 1, true) then
         skip_mode = true
       elseif skip_mode and line == '' then
       elseif skip_mode and line:find(base_source_tag, 1, true) then
@@ -160,16 +186,33 @@ function M.refresh_daily_tasks()
       end
     end
 
-    if #daily_tasks > 0 then
-      local insert_idx = frontmatter_end > 0 and (frontmatter_end + 1) or 1
-      local tasks_to_insert = { '', '## Tasks Due Today (' .. date_str .. ')' }
-      for _, task in ipairs(daily_tasks) do
-        table.insert(tasks_to_insert, task)
-      end
-      table.insert(tasks_to_insert, '')
+    -- Inject sections right below frontmatter
+    local insert_idx = frontmatter_end > 0 and (frontmatter_end + 1) or 1
+    local blocks_to_insert = {}
 
-      for i = #tasks_to_insert, 1, -1 do
-        table.insert(new_buf_lines, insert_idx, tasks_to_insert[i])
+    -- Prepare Daily block if any
+    if #daily_tasks > 0 then
+      table.insert(blocks_to_insert, '')
+      table.insert(blocks_to_insert, '## Tasks Due Today (' .. date_str .. ')')
+      for _, task in ipairs(daily_tasks) do
+        table.insert(blocks_to_insert, task)
+      end
+    end
+
+    -- Prepare Project block if any
+    if #project_tasks > 0 then
+      table.insert(blocks_to_insert, '')
+      table.insert(blocks_to_insert, '## Tasks for Project: ' .. project_name)
+      for _, task in ipairs(project_tasks) do
+        table.insert(blocks_to_insert, task)
+      end
+    end
+
+    -- Insert blocks
+    if #blocks_to_insert > 0 then
+      table.insert(blocks_to_insert, '') -- Trailing space
+      for i = #blocks_to_insert, 1, -1 do
+        table.insert(new_buf_lines, insert_idx, blocks_to_insert[i])
       end
     end
 
@@ -178,17 +221,14 @@ function M.refresh_daily_tasks()
 end
 
 function M.sync_toggle()
-  -- Using standard Checkmate toggle first to handle UI
   vim.cmd 'Checkmate toggle'
 
-  -- If we're in the daily note, immediately sync back to the monolith
   local buf = vim.api.nvim_get_current_buf()
   local path = vim.api.nvim_buf_get_name(buf)
   local filename = vim.fn.fnamemodify(path, ':t')
 
-  if filename ~= MONOLITH_FILE and filename:match '^%d%d%d%d%-%d%d%-%d%d' then M.sync_to_monolith() end
+  if filename ~= MONOLITH_FILE then M.sync_to_monolith() end
 
-  -- Autosave the current buffer
   vim.cmd 'silent! write'
 end
 

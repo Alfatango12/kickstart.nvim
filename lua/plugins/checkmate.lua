@@ -123,6 +123,13 @@ return {
         jump_to_on_insert = 'value',
         select_on_insert = true,
       },
+      link = {
+        get_value = function() return 'none' end,
+        style = { fg = '#96de7a' },
+        key = '<leader>Tl',
+        jump_to_on_insert = 'value',
+        select_on_insert = true,
+      },
     },
     archive = {
       heading = { title = 'Archive', level = 2 },
