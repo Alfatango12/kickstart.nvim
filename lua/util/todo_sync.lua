@@ -71,6 +71,7 @@ function M.sync_to_monolith()
     if id_match then
       -- Reconstruct what the monolith line *should* look like now
       local clean_line = line:gsub(base_source_tag .. ' %<!%-%-id:[a-f0-9]+%-%->%s*$', '')
+      clean_line = clean_line:gsub(' %<!%-%-id:[a-f0-9]+%-%->%s*$', '') -- fallback (for new version)
 
       -- Find the original line in the monolith by hashing
       for i, m_line in ipairs(monolith_lines) do
@@ -81,7 +82,7 @@ function M.sync_to_monolith()
 
             -- Update the ID in the note so we can keep editing without breaking the link
             local new_hash = get_hash(clean_line)
-            local updated_daily_line = clean_line .. ' (from [[' .. MONOLITH_NAME .. ']]) <!--id:' .. new_hash .. '-->'
+            local updated_daily_line = clean_line .. ' <!--id:' .. new_hash .. '-->'
             vim.api.nvim_buf_set_lines(buf, row_idx - 1, row_idx, false, { updated_daily_line })
           end
           break
@@ -149,27 +150,27 @@ function M.refresh_tasks()
 
     if not monolith_lines then return end
 
-    -- Collect relevant tasks
+    -- Collect relevant tasks (preserve original indentation)
     local daily_tasks = {}
     local project_tasks = {}
 
     for _, line in ipairs(monolith_lines) do
       if line:find('^%s*[-*]%s+[' .. UNCHECKED .. CHECKED .. ']') then
         local hash = get_hash(line)
-        local source_tag = ' (from [[' .. MONOLITH_NAME .. ']]) <!--id:' .. hash .. '-->'
+        local source_tag = ' <!--id:' .. hash .. '-->'
 
         -- Match Date tasks
-        if is_daily and line:find(due_tag, 1, true) then table.insert(daily_tasks, vim.trim(line) .. source_tag) end
+        if is_daily and line:find(due_tag, 1, true) then table.insert(daily_tasks, line .. source_tag) end
 
         -- Match Project tasks
-        if project_name and line:find('@project(' .. project_name .. ')', 1, true) then table.insert(project_tasks, vim.trim(line) .. source_tag) end
+        if project_name and line:find('@project(' .. project_name .. ')', 1, true) then table.insert(project_tasks, line .. source_tag) end
       end
     end
 
     -- Rebuild buffer lines (filtering out old injected sections)
     local new_buf_lines = {}
     local skip_mode = false
-    local base_source_tag = ' (from [[' .. MONOLITH_NAME .. ']])'
+    local base_source_tag = ' <!--id:'
 
     for i, line in ipairs(buf_lines) do
       if i <= frontmatter_end and frontmatter_end > 0 then
