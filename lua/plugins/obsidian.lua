@@ -56,22 +56,19 @@ return {
     end,
   },
   keys = {
-    -- 1. Open the main index (VimWiki style)
+    -- 1. Open the main index
     {
       '<leader>oi',
-      function()
-        -- This uses the standard Neovim edit command on your vault path
-        -- Adjust the filename to match your ID-index.md name
-        vim.cmd 'edit ~/Documents/Notes/masterVault/*index.md'
-      end,
+      function() vim.cmd 'edit ~/Documents/Notes/masterVault/*index.md' end,
       desc = 'Open Obsidian Index',
-    }, -- 2. Search for notes (Quick open)
+    },
+    -- 2. Search for notes
     {
       '<leader>os',
       '<cmd>Obsidian search<cr>',
       desc = 'Search Obsidian Notes',
     },
-    -- 3. Create a new note (Quick new)
+    -- 3. Create a new note
     {
       '<leader>on',
       function()
@@ -79,6 +76,17 @@ return {
         if title ~= '' then vim.cmd('Obsidian new ' .. title) end
       end,
       desc = 'New Obsidian Note',
+    },
+    -- 4. Follow Link (The new mapping)
+    {
+      '<leader>of',
+      '<cmd>Obsidian link<CR>',
+      desc = 'Follow Obsidian Link',
+    },
+    {
+      '<leader>ot', -- "Obsidian Today" refresh
+      function() require('util.todo_sync').refresh_daily_tasks() end,
+      desc = 'Refresh Daily Tasks',
     },
   },
 }
